@@ -70,7 +70,7 @@ static t_atom *canvas_newargv;
     /* maintain the list of visible toplevels for the GUI's "windows" menu */
 void canvas_updatewindowlist( void)
 {
-    if (! glist_amreloadingabstractions)  /* not if we're in a reload */
+    if (!glist_reloadingabstraction)  /* not if we're in a reload */
         sys_gui("::pd_menus::update_window_menu\n");
 }
 
@@ -89,7 +89,7 @@ static void canvas_takeofflist(t_canvas *x)
     {
         t_canvas *z;
         for (z = pd_this->pd_canvaslist; z->gl_next != x; z = z->gl_next)
-            ;
+            if (!z->gl_next) return;
         z->gl_next = x->gl_next;
     }
 }
@@ -254,7 +254,7 @@ t_outconnect *linetraverser_next(t_linetraverser *t)
             if (!t->tr_ob) y = t->tr_x->gl_list;
             else y = t->tr_ob->ob_g.g_next;
             for (; y; y = y->g_next)
-                if (ob = pd_checkobject(&y->g_pd)) break;
+                if ((ob = pd_checkobject(&y->g_pd))) break;
             if (!ob) return (0);
             t->tr_ob = ob;
             t->tr_nout = obj_noutlets(ob);
@@ -379,6 +379,7 @@ t_canvas *canvas_new(void *dummy, t_symbol *sel, int argc, t_atom *argv)
     x->gl_y2 = 1;
     canvas_dosetbounds(x, xloc, yloc, xloc + width, yloc + height);
     x->gl_owner = owner;
+    x->gl_isclone = 0;
     x->gl_name = (*s->s_name ? s :
         (canvas_newfilename ? canvas_newfilename : gensym("Pd")));
     canvas_bind(x);
@@ -399,6 +400,7 @@ t_canvas *canvas_new(void *dummy, t_symbol *sel, int argc, t_atom *argv)
     x->gl_willvis = vis;
     x->gl_edit = !strncmp(x->gl_name->s_name, "Untitled", 8);
     x->gl_font = sys_nearestfontsize(font);
+    x->gl_zoom = 1;
     pd_pushsym(&x->gl_pd);
     return(x);
 }
@@ -476,6 +478,7 @@ t_glist *glist_addglist(t_glist *g, t_symbol *sym,
     x->gl_pixheight = py2 - py1;
     x->gl_font =  (canvas_getcurrent() ?
         canvas_getcurrent()->gl_font : sys_defaultfont);
+    x->gl_zoom = 1;
     x->gl_screenx1 = 0;
     x->gl_screeny1 = GLIST_DEFCANVASYLOC;
     x->gl_screenx2 = 450;
@@ -604,7 +607,7 @@ void canvas_reflecttitle(t_canvas *x)
 void canvas_dirty(t_canvas *x, t_floatarg n)
 {
     t_canvas *x2 = canvas_getrootfor(x);
-    if (glist_amreloadingabstractions)
+    if (glist_reloadingabstraction)
         return;
     if ((unsigned)n != x2->gl_dirty)
     {
@@ -722,6 +725,24 @@ int glist_getfont(t_glist *x)
     return (x->gl_font);
 }
 
+int glist_getzoom(t_glist *x)
+{
+    t_glist *gl2 = x;
+    while (!glist_istoplevel(gl2) && gl2->gl_owner)
+        gl2 = gl2->gl_owner;
+    return (gl2->gl_zoom);
+}
+
+int glist_fontwidth(t_glist *x)
+{
+    return (sys_zoomfontwidth(glist_getfont(x), glist_getzoom(x), 0));
+}
+
+int glist_fontheight(t_glist *x)
+{
+    return (sys_zoomfontheight(glist_getfont(x), glist_getzoom(x), 0));
+}
+
 void canvas_free(t_canvas *x)
 {
     t_gobj *y;
@@ -730,7 +751,7 @@ void canvas_free(t_canvas *x)
     if (canvas_whichfind == x)
         canvas_whichfind = 0;
     glist_noselect(x);
-    while (y = x->gl_list)
+    while ((y = x->gl_list))
         glist_delete(x, y);
     if (x == glist_getcanvas(x))
         canvas_vis(x, 0);
@@ -748,7 +769,7 @@ void canvas_free(t_canvas *x)
     freebytes(x->gl_ylabel, x->gl_nylabels * sizeof(*(x->gl_ylabel)));
     gstub_cutoff(x->gl_stub);
     gfxstub_deleteforkey(x);        /* probably unnecessary */
-    if (!x->gl_owner)
+    if (!x->gl_owner && !x->gl_isclone)
         canvas_takeofflist(x);
 }
 
@@ -760,12 +781,13 @@ static void canvas_drawlines(t_canvas *x)
     t_outconnect *oc;
     {
         linetraverser_start(&t, x);
-        while (oc = linetraverser_next(&t))
-            sys_vgui(".x%lx.c create line %d %d %d %d -width %d -tags [list l%lx cord]\n",
-                    glist_getcanvas(x),
-                        t.tr_lx1, t.tr_ly1, t.tr_lx2, t.tr_ly2,
-                            (outlet_getsymbol(t.tr_outlet) == &s_signal ? 2:1),
-                                oc);
+        while ((oc = linetraverser_next(&t)))
+            sys_vgui(
+        ".x%lx.c create line %d %d %d %d -width %d -tags [list l%lx cord]\n",
+                glist_getcanvas(x),
+                t.tr_lx1, t.tr_ly1, t.tr_lx2, t.tr_ly2,
+                (outlet_getsymbol(t.tr_outlet) == &s_signal ? 2:1) * x->gl_zoom,
+                oc);
     }
 }
 
@@ -775,7 +797,7 @@ void canvas_fixlinesfor(t_canvas *x, t_text *text)
     t_outconnect *oc;
 
     linetraverser_start(&t, x);
-    while (oc = linetraverser_next(&t))
+    while ((oc = linetraverser_next(&t)))
     {
         if (t.tr_ob == text || t.tr_ob2 == text)
         {
@@ -792,7 +814,7 @@ void canvas_deletelinesfor(t_canvas *x, t_text *text)
     t_linetraverser t;
     t_outconnect *oc;
     linetraverser_start(&t, x);
-    while (oc = linetraverser_next(&t))
+    while ((oc = linetraverser_next(&t)))
     {
         if (t.tr_ob == text || t.tr_ob2 == text)
         {
@@ -813,7 +835,7 @@ void canvas_deletelinesforio(t_canvas *x, t_text *text,
     t_linetraverser t;
     t_outconnect *oc;
     linetraverser_start(&t, x);
-    while (oc = linetraverser_next(&t))
+    while ((oc = linetraverser_next(&t)))
     {
         if ((t.tr_ob == text && t.tr_outlet == outp) ||
             (t.tr_ob2 == text && t.tr_inlet == inp))
@@ -830,6 +852,8 @@ void canvas_deletelinesforio(t_canvas *x, t_text *text,
 
 static void canvas_pop(t_canvas *x, t_floatarg fvis)
 {
+    if (glist_istoplevel(x) && (sys_zoom_open == 2))
+        vmess(&x->gl_pd, gensym("zoom"), "f", (t_floatarg)2);
     if (fvis != 0)
         canvas_vis(x, 1);
     pd_popsym(&x->gl_pd);
@@ -1080,7 +1104,7 @@ void ugen_done_graph(t_dspcontext *dc);
     canvases, but is also called from the "dsp" method for sub-
     canvases, which are treated almost like any other tilde object.  */
 
-static void canvas_dodsp(t_canvas *x, int toplevel, t_signal **sp)
+void canvas_dodsp(t_canvas *x, int toplevel, t_signal **sp)
 {
     t_linetraverser t;
     t_outconnect *oc;
@@ -1104,7 +1128,7 @@ static void canvas_dodsp(t_canvas *x, int toplevel, t_signal **sp)
 
         /* ... and all dsp interconnections */
     linetraverser_start(&t, x);
-    while (oc = linetraverser_next(&t))
+    while ((oc = linetraverser_next(&t)))
         if (obj_issignaloutlet(t.tr_ob, t.tr_outno))
             ugen_connect(dc, t.tr_ob, t.tr_outno, t.tr_ob2, t.tr_inno);
 
@@ -1602,9 +1626,9 @@ static void canvas_f(t_canvas *x, t_symbol *s, int argc, t_atom *argv)
     }
     if (!x->gl_list)
         return;
-    for (g = x->gl_list; g2 = g->g_next; g = g2)
+    for (g = x->gl_list; (g2 = g->g_next); g = g2)
         ;
-    if (ob = pd_checkobject(&g->g_pd))
+    if ((ob = pd_checkobject(&g->g_pd)))
     {
         ob->te_width = atom_getfloatarg(0, argc, argv);
         if (glist_isvisible(x))

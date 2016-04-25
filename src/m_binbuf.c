@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "m_pd.h"
 #include "s_stuff.h"
+#include "g_canvas.h"
 #include <stdio.h>
 #include <errno.h>
 #ifdef HAVE_UNISTD_H
@@ -17,6 +18,10 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdarg.h>
+
+#ifdef _MSC_VER
+#define snprintf sprintf_s
+#endif
 
 struct _binbuf
 {
@@ -221,7 +226,7 @@ void binbuf_gettext(t_binbuf *x, char **bufp, int *lengthp)
     }
     if (length && buf[length-1] == ' ')
     {
-        if (newbuf = t_resizebytes(buf, length, length-1))
+        if ((newbuf = t_resizebytes(buf, length, length-1)))
         {
             buf = newbuf;
             length--;
@@ -238,8 +243,8 @@ void binbuf_add(t_binbuf *x, int argc, t_atom *argv)
 {
     int newsize = x->b_n + argc, i;
     t_atom *ap;
-    if (ap = t_resizebytes(x->b_vec, x->b_n * sizeof(*x->b_vec),
-        newsize * sizeof(*x->b_vec)))
+    if ((ap = t_resizebytes(x->b_vec, x->b_n * sizeof(*x->b_vec),
+        newsize * sizeof(*x->b_vec))))
             x->b_vec = ap;
     else
     {
@@ -353,8 +358,8 @@ void binbuf_restore(t_binbuf *x, int argc, t_atom *argv)
 {
     int newsize = x->b_n + argc, i;
     t_atom *ap;
-    if (ap = t_resizebytes(x->b_vec, x->b_n * sizeof(*x->b_vec),
-        newsize * sizeof(*x->b_vec)))
+    if ((ap = t_resizebytes(x->b_vec, x->b_n * sizeof(*x->b_vec),
+        newsize * sizeof(*x->b_vec))))
             x->b_vec = ap;
     else
     {
@@ -574,13 +579,13 @@ done:
 
 #ifdef HAVE_ALLOCA
 
-#ifdef HAVE_ALLOCA_H        /* ifdef nonsense to find include for alloca() */
-# include <alloca.h>        /* linux, mac, mingw, cygwin */
-#elif defined _MSC_VER
-# include <malloc.h>        /* MSVC */
+#ifdef _WIN32
+# include <malloc.h> /* MSVC or mingw on windows */
+#elif defined(__linux__) || defined(__APPLE__)
+# include <alloca.h> /* linux, mac, mingw, cygwin */
 #else
-# include <stddef.h>        /* BSDs for example */
-#endif                      /* end alloca() ifdef nonsense */
+# include <stdlib.h> /* BSDs for example */
+#endif
 
 #define ATOMS_ALLOCA(x, n) ((x) = (t_atom *)((n) < HUGEMSG ?  \
         alloca((n) * sizeof(t_atom)) : getbytes((n) * sizeof(t_atom))))
@@ -770,6 +775,8 @@ void binbuf_eval(t_binbuf *x, t_pd *target, int argc, t_atom *argv)
             case A_FLOAT:
                 if (nargs == 1) pd_float(target, mstack->a_w.w_float);
                 else pd_list(target, 0, nargs, mstack);
+                break;
+            default:
                 break;
             }
         }
@@ -1450,7 +1457,6 @@ static t_binbuf *binbuf_convert(t_binbuf *oldb, int maxtopd)
 }
 
 void pd_doloadbang(void);
-void canvas_initbang(t_canvas *x);
 extern t_symbol s__X;
 
 /* LATER make this evaluate the file on-the-fly. */
@@ -1520,10 +1526,10 @@ void binbuf_savetext(t_binbuf *bfrom, t_binbuf *bto)
     for (k = 0; k < n; k++)
     {
         if (ap[k].a_type == A_FLOAT ||
-            ap[k].a_type == A_SYMBOL &&
+            (ap[k].a_type == A_SYMBOL &&
                 !strchr(ap[k].a_w.w_symbol->s_name, ';') &&
                 !strchr(ap[k].a_w.w_symbol->s_name, ',') &&
-                !strchr(ap[k].a_w.w_symbol->s_name, '$'))
+                !strchr(ap[k].a_w.w_symbol->s_name, '$')))
                     binbuf_add(bto, 1, &ap[k]);
         else
         {

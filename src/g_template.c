@@ -287,7 +287,7 @@ static t_scalar *template_conformscalar(t_template *tfrom, t_template *tto,
         else
         {
             t_gobj *y, *y2;
-            for (y = glist->gl_list; y2 = y->g_next; y = y2)
+            for (y = glist->gl_list; (y2 = y->g_next); y = y2)
                 if (y2 == &scfrom->sc_gobj)
             {
                 x->sc_gobj.g_next = y2->g_next;
@@ -570,7 +570,7 @@ static void *gtemplate_donew(t_symbol *sym, int argc, t_atom *argv)
         if (t->t_list)
         {
             t_gtemplate *x2, *x3;
-            for (x2 = x->x_template->t_list; x3 = x2->x_next; x2 = x3)
+            for (x2 = x->x_template->t_list; (x3 = x2->x_next); x2 = x3)
                 ;
             x2->x_next = x;
             post("template %s: warning: already exists.", sym->s_name);
@@ -664,7 +664,7 @@ static void gtemplate_free(t_gtemplate *x)
     else
     {
         t_gtemplate *x2, *x3;
-        for (x2 = t->t_list; x3 = x2->x_next; x2 = x3)
+        for (x2 = t->t_list; (x3 = x2->x_next); x2 = x3)
         {
             if (x == x3)
             {
@@ -2053,12 +2053,12 @@ static int array_doclick_element(t_array *array, t_glist *glist,
         else usexloc = xloc + xsum, xsum += xinc;
         useyloc = yloc + (yonset >= 0 ? fielddesc_cvttocoord(yfield,
             *(t_float *)(((char *)(array->a_vec) + elemsize * i) + yonset)) : 0);
-
-        if (hit = scalar_doclick(
+        
+        if ((hit = scalar_doclick(
             (t_word *)((char *)(array->a_vec) + i * elemsize),
             elemtemplate, 0, array,
             glist, usexloc, useyloc,
-            xpix, ypix, shift, alt, dbl, doit))
+            xpix, ypix, shift, alt, dbl, doit)))
                 return (hit);
     }
     return (0);
@@ -2447,7 +2447,7 @@ static void drawnumber_getrect(t_gobj *z, t_glist *glist,
 {
     t_drawnumber *x = (t_drawnumber *)z;
     t_atom at;
-    int xloc, yloc, font, fontwidth, fontheight, bufsize, width, height;
+    int xloc, yloc, fontwidth, fontheight, bufsize, width, height;
     char buf[DRAWNUMBER_BUFSIZE], *startline, *newline;
 
     if (!fielddesc_getfloat(&x->x_vis, template, data, 0))
@@ -2460,13 +2460,12 @@ static void drawnumber_getrect(t_gobj *z, t_glist *glist,
         basex + fielddesc_getcoord(&x->x_xloc, template, data, 0));
     yloc = glist_ytopixels(glist,
         basey + fielddesc_getcoord(&x->x_yloc, template, data, 0));
-    font = glist_getfont(glist);
-    fontwidth = sys_fontwidth(font);
-        fontheight = sys_fontheight(font);
+    fontwidth = glist_fontwidth(glist);
+    fontheight = glist_fontheight(glist);
     drawnumber_getbuf(x, data, template, buf);
     width = 0;
     height = 1;
-    for (startline = buf; newline = strchr(startline, '\n');
+    for (startline = buf; (newline = strchr(startline, '\n'));
         startline = newline+1)
     {
         if (newline - startline > width)
@@ -2526,7 +2525,8 @@ static void drawnumber_vis(t_gobj *z, t_glist *glist,
         sys_vgui(".x%lx.c create text %d %d -anchor nw -fill %s -text {%s}",
                 glist_getcanvas(glist), xloc, yloc, colorstring, buf);
         sys_vgui(" -font {{%s} -%d %s}", sys_font,
-                 sys_hostfontsize(glist_getfont(glist)), sys_fontweight);
+            sys_hostfontsize(glist_getfont(glist), glist_getzoom(glist)),
+                sys_fontweight);
         sys_vgui(" -tags [list drawnumber%lx label]\n", data);
     }
     else sys_vgui(".x%lx.c delete drawnumber%lx\n", glist_getcanvas(glist), data);

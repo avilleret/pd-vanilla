@@ -317,7 +317,7 @@ void canvas_dataproperties(t_canvas *x, t_scalar *sc, t_binbuf *b)
         /* take the new object off the list */
     if (ntotal)
     {
-        for (y = x->gl_list, nnew = 1; y2 = y->g_next;
+        for (y = x->gl_list, nnew = 1; (y2 = y->g_next);
             y = y2, nnew++)
                 if (nnew == ntotal)
         {
@@ -589,6 +589,10 @@ static void canvas_saveto(t_canvas *x, t_binbuf *b)
     t_gobj *y;
     t_linetraverser t;
     t_outconnect *oc;
+    int zoomwas = x->gl_zoom;
+
+    if (zoomwas > 1)
+        vmess(&x->gl_pd, gensym("zoom"), "f", (t_floatarg)1);
         /* subpatch */
     if (x->gl_owner && !x->gl_env)
     {
@@ -621,7 +625,7 @@ static void canvas_saveto(t_canvas *x, t_binbuf *b)
         gobj_save(y, b);
 
     linetraverser_start(&t, x);
-    while (oc = linetraverser_next(&t))
+    while ((oc = linetraverser_next(&t)))
     {
         int srcno = canvas_getindex(x, &t.tr_ob->ob_g);
         int sinkno = canvas_getindex(x, &t.tr_ob2->ob_g);
@@ -650,6 +654,8 @@ static void canvas_saveto(t_canvas *x, t_binbuf *b)
                 (t_float)x->gl_pixwidth, (t_float)x->gl_pixheight,
                 (t_float)x->gl_isgraph);
     }
+    if (zoomwas > 1)
+        vmess(&x->gl_pd, gensym("zoom"), "f", (t_floatarg)zoomwas);
 }
 
     /* call this recursively to collect all the template names for
@@ -711,7 +717,7 @@ static void canvas_savetemplatesto(t_canvas *x, t_binbuf *b, int wholething)
     }
 }
 
-void canvas_reload(t_symbol *name, t_symbol *dir, t_gobj *except);
+void canvas_reload(t_symbol *name, t_symbol *dir, t_glist *except);
 
     /* save a "root" canvas to a file; cf. canvas_saveto() which saves the
     body (and which is called recursively.) */
@@ -733,7 +739,7 @@ static void canvas_savetofile(t_canvas *x, t_symbol *filename, t_symbol *dir,
 }
         post("saved to: %s/%s", dir->s_name, filename->s_name);
         canvas_dirty(x, 0);
-        canvas_reload(filename, dir, &x->gl_gobj);
+        canvas_reload(filename, dir, x);
         if (fdestroy != 0)
             vmess(&x->gl_pd, gensym("menuclose"), "f", 1.);
     }

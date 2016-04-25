@@ -11,7 +11,7 @@ extern "C" {
 #define PD_MAJOR_VERSION 0
 #define PD_MINOR_VERSION 47
 #define PD_BUGFIX_VERSION 0
-#define PD_TEST_VERSION "test"
+#define PD_TEST_VERSION "test1"
 extern int pd_compatibilitylevel;   /* e.g., 43 for pd 0.43 compatibility */
 
 /* old name for "MSW" flag -- we have to take it for the sake of many old
@@ -445,6 +445,8 @@ EXTERN void canvas_makefilename(t_glist *c, char *file,
 EXTERN t_symbol *canvas_getdir(t_glist *x);
 EXTERN char sys_font[]; /* default typeface set in s_main.c */
 EXTERN char sys_fontweight[]; /* default font weight set in s_main.c */
+EXTERN int sys_zoomfontwidth(int fontsize, int zoom, int worstcase);
+EXTERN int sys_zoomfontheight(int fontsize, int zoom, int worstcase);
 EXTERN int sys_fontwidth(int fontsize);
 EXTERN int sys_fontheight(int fontsize);
 EXTERN void canvas_dataproperties(t_glist *x, t_scalar *sc, t_binbuf *b);

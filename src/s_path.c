@@ -23,13 +23,13 @@
 #include <windows.h>
 #endif
 
-#ifdef HAVE_ALLOCA_H        /* ifdef nonsense to find include for alloca() */
-# include <alloca.h>        /* linux, mac, mingw, cygwin */
-#elif defined _MSC_VER
-# include <malloc.h>        /* MSVC */
+#ifdef _WIN32
+# include <malloc.h> /* MSVC or mingw on windows */
+#elif defined(__linux__) || defined(__APPLE__)
+# include <alloca.h> /* linux, mac, mingw, cygwin */
 #else
-# include <stddef.h>        /* BSDs for example */
-#endif                      /* end alloca() ifdef nonsense */
+# include <stdlib.h> /* BSDs for example */
+#endif
 
 #include <string.h>
 #include "m_pd.h"
@@ -56,7 +56,7 @@ t_namelist *sys_helppath;
 void sys_bashfilename(const char *from, char *to)
 {
     char c;
-    while (c = *from++)
+    while ((c = *from++))
     {
 #ifdef _WIN32
         if (c == '/') c = '\\';
@@ -70,7 +70,7 @@ void sys_bashfilename(const char *from, char *to)
 void sys_unbashfilename(const char *from, char *to)
 {
     char c;
-    while (c = *from++)
+    while ((c = *from++))
     {
 #ifdef _WIN32
         if (c == '\\') c = '/';

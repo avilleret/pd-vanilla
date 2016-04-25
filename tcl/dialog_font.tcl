@@ -22,7 +22,18 @@ namespace eval ::dialog_font:: {
 
 proc ::dialog_font::apply {mytoplevel myfontsize} {
     if {$mytoplevel eq ".pdwindow"} {
-        .pdwindow.text configure -font "-size $myfontsize"
+        if {[lsearch [font names] TkTextFont] >= 0} {
+            font configure TkTextFont -size -$myfontsize
+        }
+        if {[lsearch [font names] TkDefaultFont] >= 0} {
+            font configure TkDefaultFont -size -$myfontsize
+        }
+        if {[lsearch [font names] TkMenuFont] >= 0} {
+            font configure TkMenuFont -size -$myfontsize
+        }
+# repeat a "pack" command so the font dialog can resize itself
+        pack .font.buttonframe -side bottom -fill x -pady 2m
+
     } else {
         variable stretchval
         variable whichstretch
@@ -85,7 +96,7 @@ proc ::dialog_font::create_dialog {gfxstub} {
     .font configure -menu $::dialog_menubar
     .font configure -padx 10 -pady 5
     wm group .font .
-    wm resizable .font 0 0
+#    wm resizable .font 0 0
     wm transient .font $::focused_window
     ::pd_bindings::dialog_bindings .font "font"
     # replace standard bindings to work around the gfxstub stuff and use

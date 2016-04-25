@@ -175,6 +175,7 @@ struct _glist
     t_editor *gl_editor;        /* editor structure when visible */
     t_symbol *gl_name;          /* symbol bound here */
     int gl_font;                /* nominal font size in points, e.g., 10 */
+    int gl_zoom;                /* zoom factor (integer zoom-in only) */
     struct _glist *gl_next;         /* link in list of toplevels */
     t_canvasenvironment *gl_env;    /* root canvases and abstractions only */
     unsigned int gl_havewindow:1;   /* true if we own a window */
@@ -188,6 +189,7 @@ struct _glist
     unsigned int gl_isgraph:1;      /* show as graph on parent */
     unsigned int gl_hidetext:1;     /* hide object-name + args when doing graph on parent */
     unsigned int gl_private:1;      /* private flag used in x_scalar.c */
+    unsigned int gl_isclone:1;      /* esists as part of a clone object */
 };
 
 #define gl_gobj gl_obj.te_g
@@ -379,6 +381,9 @@ EXTERN int glist_isvisible(t_glist *x);
 EXTERN int glist_istoplevel(t_glist *x);
 EXTERN t_glist *glist_findgraph(t_glist *x);
 EXTERN int glist_getfont(t_glist *x);
+EXTERN int glist_fontwidth(t_glist *x);
+EXTERN int glist_fontheight(t_glist *x);
+EXTERN int glist_getzoom(t_glist *x);
 EXTERN void glist_sort(t_glist *canvas);
 EXTERN void glist_read(t_glist *x, t_symbol *filename, t_symbol *format);
 EXTERN void glist_mergefile(t_glist *x, t_symbol *filename, t_symbol *format);
@@ -455,6 +460,8 @@ EXTERN void canvas_deletelinesfor(t_canvas *x, t_text *text);
 EXTERN void canvas_stowconnections(t_canvas *x);
 EXTERN void canvas_restoreconnections(t_canvas *x);
 EXTERN void canvas_redraw(t_canvas *x);
+EXTERN void canvas_closebang(t_canvas *x);
+EXTERN void canvas_initbang(t_canvas *x);
 
 EXTERN t_inlet *canvas_addinlet(t_canvas *x, t_pd *who, t_symbol *sym);
 EXTERN void canvas_rminlet(t_canvas *x, t_inlet *ip);
@@ -492,9 +499,15 @@ EXTERN int canvas_hitbox(t_canvas *x, t_gobj *y, int xpos, int ypos,
     int *x1p, int *y1p, int *x2p, int *y2p);
 EXTERN int canvas_setdeleting(t_canvas *x, int flag);
 
-#define LB_LOAD 0       /* "loadbang" actions */
-#define LB_INIT 1
-#define LB_CLOSE 2
+#define LB_LOAD 0       /* "loadbang" actions - 0 for original meaning */
+#define LB_INIT 1       /* loaded but not yet connected to parent patch */
+#define LB_CLOSE 2      /* about to close */
+
+    /* Pointer to canvas that was saved necessitating a reload of abstractions
+    of that name.  We use as a flag to stop canvases from being marked "dirty"
+    if we have to touch them to reload; also suppress window list update.
+    "clone~" uses this to identify which copy NOT to reload */
+t_glist *glist_reloadingabstraction;
 
 typedef void (*t_undofn)(t_canvas *canvas, void *buf,
     int action);        /* a function that does UNDO/REDO */
@@ -635,6 +648,9 @@ EXTERN void guiconnect_notarget(t_guiconnect *x, double timedelay);
 /* ------------- IEMGUI routines used in other g_ files ---------------- */
 EXTERN t_symbol *iemgui_raute2dollar(t_symbol *s);
 EXTERN t_symbol *iemgui_dollar2raute(t_symbol *s);
+
+/*-------------  g_clone.c ------------- */
+extern t_class *clone_class;
 
 #if defined(_LANGUAGE_C_PLUS_PLUS) || defined(__cplusplus)
 }

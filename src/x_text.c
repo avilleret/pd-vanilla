@@ -19,13 +19,13 @@ moment it also defines "text" but it may later be better to split this off. */
 extern t_pd *newest;    /* OK - this should go into a .h file now :) */
 static t_class *text_define_class;
 
-#ifdef HAVE_ALLOCA_H        /* ifdef nonsense to find include for alloca() */
-# include <alloca.h>        /* linux, mac, mingw, cygwin */
-#elif defined _MSC_VER
-# include <malloc.h>        /* MSVC */
+#ifdef _WIN32
+# include <malloc.h> /* MSVC or mingw on windows */
+#elif defined(__linux__) || defined(__APPLE__)
+# include <alloca.h> /* linux, mac, mingw, cygwin */
 #else
-# include <stddef.h>        /* BSDs for example */
-#endif                      /* end alloca() ifdef nonsense */
+# include <stdlib.h> /* BSDs for example */
+#endif
 
 #ifndef HAVE_ALLOCA     /* can work without alloca() but we never need it */
 #define HAVE_ALLOCA 1
@@ -90,7 +90,8 @@ static void textbuf_open(t_textbuf *x)
         char buf[40];
         sys_vgui("pdtk_textwindow_open .x%lx %dx%d {%s: %s} %d\n",
             x, 600, 340, "myname", "text",
-                 sys_hostfontsize(glist_getfont(x->b_canvas)));
+                 sys_hostfontsize(glist_getfont(x->b_canvas),
+                    glist_getzoom(x->b_canvas)));
         sprintf(buf, ".x%lx", (unsigned long)x);
         x->b_guiconnect = guiconnect_new(&x->b_ob.ob_pd, gensym(buf));
         textbuf_senditup(x);
@@ -200,7 +201,7 @@ static void textbuf_free(t_textbuf *x)
         guiconnect_notarget(x->b_guiconnect, 1000);
     }
         /* just in case we're still bound to #A from loading... */
-    while (x2 = pd_findbyclass(gensym("#A"), text_define_class))
+    while ((x2 = pd_findbyclass(gensym("#A"), text_define_class)))
         pd_unbind(x2, gensym("#A"));
 }
 
@@ -1113,6 +1114,7 @@ static void text_search_list(t_text_search *x,
                                     goto replace;
                                 else if (thisv < bestv)
                                     goto nomatch;
+                            break;
                             case KB_NEAR:
                                 if (thisv >= argv[j].a_w.w_float &&
                                     bestv >= argv[j].a_w.w_float)
@@ -1286,9 +1288,9 @@ static void text_sequence_doit(t_text_sequence *x, int argc, t_atom *argv)
         /* test if leading numbers, or a leading symbol equal to our
         "wait symbol", are directing us to wait */
     if (!x->x_lastto && (
-        vec[onset].a_type == A_FLOAT && x->x_waitargc && !x->x_eaten ||
-            vec[onset].a_type == A_SYMBOL &&
-                vec[onset].a_w.w_symbol == x->x_waitsym))
+        (vec[onset].a_type == A_FLOAT && x->x_waitargc && !x->x_eaten) ||
+            (vec[onset].a_type == A_SYMBOL &&
+                vec[onset].a_w.w_symbol == x->x_waitsym)))
     {
         if (vec[onset].a_type == A_FLOAT)
         {
