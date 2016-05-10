@@ -45,9 +45,13 @@ void gobj_displace(t_gobj *x, t_glist *glist, int dx, int dy)
         (*x->g_pd->c_wb->w_displacefn)(x, glist, dx, dy);
 }
 
+    /* here we add an extra check whether we're mapped, because some
+    editing moves are carried out on invisible windows (notably, re-creating
+    abstractions when one is saved).  Should any other widget finctions also
+    be doing this?  */
 void gobj_select(t_gobj *x, t_glist *glist, int state)
 {
-    if (x->g_pd->c_wb && x->g_pd->c_wb->w_selectfn)
+    if (glist->gl_mapped && x->g_pd->c_wb && x->g_pd->c_wb->w_selectfn)
         (*x->g_pd->c_wb->w_selectfn)(x, glist, state);
 }
 
@@ -1206,19 +1210,22 @@ static void canvas_done_popup(t_canvas *x, t_float which, t_float xpos, t_float 
                         return;
                     atom_string(av, namebuf, MAXPDSTRING);
 
-                    // strip dir from name :
+                    /* strip dir from name : */
                     basenamep = strrchr(namebuf, '/');
-                    #ifdef _WIN32
-                    if(!*basenamep) basenamep = strrchr(namebuf, '\\');
-                    #endif
-                    if(!*basenamep) basenamep = namebuf;
-                    else basenamep++; //strip last '/'
+#ifdef _WIN32
+                    if (!basenamep)
+                        basenamep = strrchr(namebuf, '\\');
+#endif
+                    if (!basenamep)
+                        basenamep = namebuf;
+                    else basenamep++;   /* strip last '/' */
 
                     dir = canvas_getdir((t_canvas *)y)->s_name;
                 }
                 else
                 {
-                    strncpy(namebuf, class_gethelpname(pd_class(&y->g_pd)), MAXPDSTRING-1);
+                    strncpy(namebuf, class_gethelpname(pd_class(&y->g_pd)),
+                        MAXPDSTRING-1);
                     namebuf[MAXPDSTRING-1] = 0;
                     dir = class_gethelpdir(pd_class(&y->g_pd));
                     basenamep = namebuf;
@@ -2171,8 +2178,8 @@ static void canvas_find(t_canvas *x, t_symbol *s, t_floatarg wholeword)
     found = canvas_dofind(x, &myindex);
     if (found)
         canvas_find_index = 1;
-    sys_vgui("pdtk_showfindresult .x%lx %d %d %d\n", x, found, canvas_find_index,
-        myindex);
+    sys_vgui("pdtk_showfindresult .x%lx %d %d %d\n", x, found,
+        canvas_find_index, myindex);
 }
 
 static void canvas_find_again(t_canvas *x)
@@ -2181,8 +2188,10 @@ static void canvas_find_again(t_canvas *x)
     if (!canvas_findbuf || !canvas_whichfind)
         return;
     found = canvas_dofind(canvas_whichfind, &myindex);
-    sys_vgui("pdtk_showfindresult .x%lx %d %d %d\n", x, found, ++canvas_find_index,
-        myindex);
+    sys_vgui("pdtk_showfindresult .x%lx %d %d %d\n", x, found,
+        ++canvas_find_index, myindex);
+    if (!found)
+        canvas_find_index = 0;
 }
 
 static void canvas_find_parent(t_canvas *x)
@@ -2483,7 +2492,8 @@ static void canvas_dopaste(t_canvas *x, t_binbuf *b)
     paste_canvas = 0;
     canvas_resume_dsp(dspstate);
     canvas_dirty(x, 1);
-    sys_vgui("pdtk_canvas_getscroll .x%lx.c\n", x);
+    if (x->gl_mapped)
+        sys_vgui("pdtk_canvas_getscroll .x%lx.c\n", x);
     if (!sys_noloadbang)
         glist_donewloadbangs(x);
     asym->s_thing = bounda;
